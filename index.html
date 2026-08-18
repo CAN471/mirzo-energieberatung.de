@@ -222,6 +222,53 @@
 .framer-8c1gx3[data-framer-name="Social"],
 .framer-1x9kfky[data-framer-name="About"],
 .framer-1su39qg[data-framer-name="Right"] { display: none !important; }
+</style><style id="mirzo-preview-footer-overrides-css">
+/* Keep the decorative Framer preview visible, but make it inert. */
+#1jsse1n {
+  pointer-events: auto !important;
+  cursor: default !important;
+}
+#1jsse1n * {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
+#lunavo-footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.42);
+  font-family: "DM Sans", "DM Sans Placeholder", sans-serif;
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: -0.2px;
+  text-decoration: none;
+  opacity: 0.9;
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+#lunavo-footer-brand span {
+  color: rgba(255, 255, 255, 0.42);
+}
+#lunavo-footer-brand strong {
+  color: rgba(255, 255, 255, 0.76);
+  font-weight: 600;
+  letter-spacing: 0.15px;
+}
+#lunavo-footer-brand:hover {
+  opacity: 1;
+}
+#lunavo-footer-brand:hover span {
+  color: rgba(255, 255, 255, 0.62);
+}
+#lunavo-footer-brand:hover strong {
+  color: #fff;
+}
+@media (max-width: 809.98px) {
+  #lunavo-footer-brand {
+    font-size: 11px;
+    line-height: 17px;
+  }
+}
 </style></head>
 <body>
 	<script async="" src="https://events.framer.com/script?v=2" data-fid="959109d84ac4d77aff41441cc7e6f0373f63c75e47a9c1ca835c1b8dc4c8f7db" data-no-nt=""></script>
@@ -305,4 +352,41 @@
     <!-- End of bodyEnd -->
 
 
-</body></html>
+<script id="mirzo-preview-footer-overrides-js">
+(function () {
+  function applyOverrides() {
+    var preview = document.getElementById("1jsse1n");
+    if (preview) {
+      preview.setAttribute("aria-disabled", "true");
+      preview.querySelectorAll("[tabindex]").forEach(function (el) {
+        el.removeAttribute("tabindex");
+      });
+    }
+
+    var footerRow = document.querySelector(".framer-DCF2l .framer-1bzffsm")
+      || document.querySelector('[data-framer-name="Footer"] .framer-1bzffsm');
+
+    if (footerRow && !document.getElementById("lunavo-footer-brand")) {
+      var brand = document.createElement("a");
+      brand.id = "lunavo-footer-brand";
+      brand.href = "https://lunavo.media";
+      brand.target = "_blank";
+      brand.rel = "noopener noreferrer";
+      brand.setAttribute("aria-label", "Website by lunavo.media");
+      brand.innerHTML = "<span>Website by</span><strong>lunavo.media</strong>";
+      footerRow.appendChild(brand);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", applyOverrides);
+  } else {
+    applyOverrides();
+  }
+
+  var root = document.getElementById("main") || document.body;
+  var observer = new MutationObserver(applyOverrides);
+  observer.observe(root, { childList: true, subtree: true });
+  window.setTimeout(function () { observer.disconnect(); }, 10000);
+})();
+</script></body></html>
