@@ -1,114 +1,41 @@
-# Temporary cleanup + deploy workflow
 name: Deploy static content to Pages
 
 on:
+  # Runs on pushes targeting the default branch
   push:
     branches: ["main"]
+
+  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
-  cleanup:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-      - name: Remove obsolete footer blocks
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          path = Path("index.html")
-          html = path.read_text(encoding="utf-8")
-
-          def remove_balanced(html, marker, tag):
-              count = html.count(marker)
-              if count == 0:
-                  return html
-              if count != 1:
-                  raise RuntimeError(f"Expected at most one {marker!r}, found {count}")
-              start = html.index(marker)
-              pattern = re.compile(rf"<{tag}\\b[^>]*>|</{tag}\\s*>", re.I)
-              depth = 0
-              for match in pattern.finditer(html, start):
-                  token = match.group(0).lower()
-                  if not token.startswith(f"</{tag}"):
-                      depth += 1
-                  else:
-                      depth -= 1
-                      if depth == 0:
-                          return html[:start] + html[match.end():]
-              raise RuntimeError(f"Could not find closing {tag} for {marker!r}")
-
-          targets = [
-              ('<form class="framer-p9blxb">', "form"),
-              ('<div class="framer-8c1gx3" data-framer-name="Social">', "div"),
-              ('<div class="framer-1x9kfky" data-framer-name="About">', "div"),
-              ('<div class="framer-1su39qg" data-framer-name="Right">', "div"),
-          ]
-          for marker, tag in targets:
-              html = remove_balanced(html, marker, tag)
-
-          guard = '''<style id="mirzo-footer-cleanup">
-          .framer-p9blxb,
-          .framer-8c1gx3[data-framer-name="Social"],
-          .framer-1x9kfky[data-framer-name="About"],
-          .framer-1su39qg[data-framer-name="Right"] { display: none !important; }
-          </style>'''
-          if 'id="mirzo-footer-cleanup"' not in html:
-              html = html.replace("</head>", guard + "</head>", 1)
-
-          forbidden = [
-              'placeholder="Bleib auf dem laufenden!"',
-              '>Twitter (X)<',
-              '>Instagram<',
-              '>Youtube<',
-              '>Terms &amp; Conditions<',
-              '>Privacy Policy<',
-              '<div class="framer-1x9kfky" data-framer-name="About">',
-          ]
-          leftovers = [item for item in forbidden if item in html]
-          if leftovers:
-              raise RuntimeError(f"Cleanup verification failed; leftovers: {leftovers}")
-
-          path.write_text(html, encoding="utf-8")
-          PY
-
-          if ! git diff --quiet -- index.html; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add index.html
-            git commit -m "Clean up homepage footer"
-            git push origin HEAD:main
-          fi
-
+  # Single deploy job since we're just deploying
   deploy:
-    needs: cleanup
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout latest main
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: main
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
+          # Upload entire repository
           path: '.'
       - name: Deploy to GitHub Pages
         id: deployment
