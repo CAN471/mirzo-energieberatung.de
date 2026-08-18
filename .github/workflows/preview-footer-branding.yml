@@ -1,0 +1,149 @@
+name: One-time preview and footer branding
+
+on:
+  pull_request:
+    branches: ["main"]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          fetch-depth: 0
+
+      - name: Apply preview/footer overrides
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("index.html")
+          html = path.read_text(encoding="utf-8")
+
+          if '<div class="framer-1jsse1n-container' not in html:
+              raise RuntimeError("Preview container not found")
+          if 'class="framer-1bzffsm" data-framer-name="Content"' not in html:
+              raise RuntimeError("Footer bottom row not found")
+
+          style = '''<style id="mirzo-preview-footer-overrides-css">
+          /* Keep the decorative Framer preview visible, but make it inert. */
+          #1jsse1n {
+            pointer-events: auto !important;
+            cursor: default !important;
+          }
+          #1jsse1n * {
+            pointer-events: none !important;
+            cursor: default !important;
+          }
+
+          #lunavo-footer-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: rgba(255, 255, 255, 0.42);
+            font-family: "DM Sans", "DM Sans Placeholder", sans-serif;
+            font-size: 12px;
+            line-height: 18px;
+            letter-spacing: -0.2px;
+            text-decoration: none;
+            opacity: 0.9;
+            transition: color 0.2s ease, opacity 0.2s ease;
+          }
+          #lunavo-footer-brand span {
+            color: rgba(255, 255, 255, 0.42);
+          }
+          #lunavo-footer-brand strong {
+            color: rgba(255, 255, 255, 0.76);
+            font-weight: 600;
+            letter-spacing: 0.15px;
+          }
+          #lunavo-footer-brand:hover {
+            opacity: 1;
+          }
+          #lunavo-footer-brand:hover span {
+            color: rgba(255, 255, 255, 0.62);
+          }
+          #lunavo-footer-brand:hover strong {
+            color: #fff;
+          }
+          @media (max-width: 809.98px) {
+            #lunavo-footer-brand {
+              font-size: 11px;
+              line-height: 17px;
+            }
+          }
+          </style>'''
+
+          script = '''<script id="mirzo-preview-footer-overrides-js">
+          (function () {
+            function applyOverrides() {
+              var preview = document.getElementById("1jsse1n");
+              if (preview) {
+                preview.setAttribute("aria-disabled", "true");
+                preview.querySelectorAll("[tabindex]").forEach(function (el) {
+                  el.removeAttribute("tabindex");
+                });
+              }
+
+              var footerRow = document.querySelector(".framer-DCF2l .framer-1bzffsm")
+                || document.querySelector('[data-framer-name="Footer"] .framer-1bzffsm');
+
+              if (footerRow && !document.getElementById("lunavo-footer-brand")) {
+                var brand = document.createElement("a");
+                brand.id = "lunavo-footer-brand";
+                brand.href = "https://lunavo.media";
+                brand.target = "_blank";
+                brand.rel = "noopener noreferrer";
+                brand.setAttribute("aria-label", "Website by lunavo.media");
+                brand.innerHTML = "<span>Website by</span><strong>lunavo.media</strong>";
+                footerRow.appendChild(brand);
+              }
+            }
+
+            if (document.readyState === "loading") {
+              document.addEventListener("DOMContentLoaded", applyOverrides);
+            } else {
+              applyOverrides();
+            }
+
+            var root = document.getElementById("main") || document.body;
+            var observer = new MutationObserver(applyOverrides);
+            observer.observe(root, { childList: true, subtree: true });
+            window.setTimeout(function () { observer.disconnect(); }, 10000);
+          })();
+          </script>'''
+
+          if 'id="mirzo-preview-footer-overrides-css"' not in html:
+              html = html.replace("</head>", style + "</head>", 1)
+          if 'id="mirzo-preview-footer-overrides-js"' not in html:
+              html = html.replace("</body>", script + "</body>", 1)
+
+          required = [
+              'id="mirzo-preview-footer-overrides-css"',
+              '#1jsse1n *',
+              'id="mirzo-preview-footer-overrides-js"',
+              'https://lunavo.media',
+              'lunavo-footer-brand',
+              'Website by</span><strong>lunavo.media',
+          ]
+          missing = [item for item in required if item not in html]
+          if missing:
+              raise RuntimeError(f"Update verification failed: {missing}")
+
+          path.write_text(html, encoding="utf-8")
+
+      - name: Commit result and remove one-time workflow
+        run: |
+          rm .github/workflows/preview-footer-branding.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html .github/workflows/preview-footer-branding.yml
+          git commit -m "Disable preview click and add lunavo.media footer branding"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
