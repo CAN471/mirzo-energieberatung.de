@@ -1,0 +1,77 @@
+name: One-time remove empty YouTube placeholder
+
+on:
+  pull_request:
+    branches: ["main"]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          fetch-depth: 0
+
+      - name: Hide empty Framer YouTube placeholder
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path("index.html")
+          html = path.read_text(encoding="utf-8")
+
+          if 'id="1jsse1n"' not in html:
+              raise RuntimeError("Target preview container #1jsse1n not found")
+
+          # Replace the old inert-click rule with a full hide. The placeholder is
+          # an empty Framer YouTube component, so keeping it visible serves no purpose.
+          pattern = re.compile(
+              r'#1jsse1n\s*\{\s*pointer-events:\s*auto\s*!important;\s*cursor:\s*default\s*!important;\s*\}',
+              re.S,
+          )
+          replacement = '''#1jsse1n {
+            display: none !important;
+          }'''
+
+          html, count = pattern.subn(replacement, html, count=1)
+          if count != 1:
+              raise RuntimeError(f"Expected exactly one #1jsse1n inert rule, replaced {count}")
+
+          # Remove the now-redundant descendant pointer-events rule too.
+          html, child_count = re.subn(
+              r'\s*#1jsse1n\s+\*\s*\{\s*pointer-events:\s*none\s*!important;\s*cursor:\s*default\s*!important;\s*\}',
+              '',
+              html,
+              count=1,
+              flags=re.S,
+          )
+          if child_count != 1:
+              raise RuntimeError(f"Expected exactly one #1jsse1n child rule, removed {child_count}")
+
+          required = [
+              '#1jsse1n {',
+              'display: none !important;',
+              'id="1jsse1n"',
+          ]
+          missing = [item for item in required if item not in html]
+          if missing:
+              raise RuntimeError(f"Verification failed: {missing}")
+
+          path.write_text(html, encoding="utf-8")
+
+      - name: Commit result and remove one-time workflow
+        run: |
+          rm .github/workflows/remove-empty-youtube-placeholder.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html .github/workflows/remove-empty-youtube-placeholder.yml
+          git commit -m "Remove empty Framer YouTube placeholder"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
