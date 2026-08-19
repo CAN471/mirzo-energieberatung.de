@@ -1,0 +1,83 @@
+name: One-time hard remove About player
+
+on:
+  push:
+    branches:
+      - agent/hard-remove-about-player
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/hard-remove-about-player
+          fetch-depth: 0
+
+      - name: Hard-hide the About hero player container
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          page = Path('about/index.html')
+          text = page.read_text(encoding='utf-8')
+
+          marker = 'id="mirzo-about-player-hard-kill"'
+          if marker not in text:
+              css = '''<style id="mirzo-about-player-hard-kill">
+/* Hard kill for the obsolete Framer YouTube preview on /about. */
+.framer-1kehpu3[data-framer-name="Bottom"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+</style>'''
+              if '</head>' not in text:
+                  raise SystemExit('Missing </head> in about/index.html')
+              text = text.replace('</head>', css + '</head>', 1)
+
+          pattern = re.compile(r'(<div class="framer-1kehpu3"[^>]*\bstyle=")([^"]*)(")')
+          matches = list(pattern.finditer(text))
+          if len(matches) != 1:
+              raise SystemExit(f'Expected exactly one About hero Bottom container, found {len(matches)}')
+
+          def hard_hide(match):
+              style = match.group(2)
+              if 'display:none!important' not in style.replace(' ', ''):
+                  style = 'display:none!important;visibility:hidden!important;height:0!important;' + style
+              return match.group(1) + style + match.group(3)
+
+          text = pattern.sub(hard_hide, text, count=1)
+          page.write_text(text, encoding='utf-8')
+
+          final = page.read_text(encoding='utf-8')
+          if final.count(marker) != 1:
+              raise SystemExit('Hard-kill CSS marker validation failed')
+          if 'class="framer-1kehpu3"' not in final or 'display:none!important' not in final:
+              raise SystemExit('Inline hard-hide validation failed')
+          if 'id="xl1v90"' not in final:
+              raise SystemExit('Expected xl1v90 player marker missing before hide')
+          PY
+
+      - name: Commit result and remove one-time files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/hard-remove-about-player.yml
+          rm -f .github/.hard-remove-about-player-trigger
+          git add -A about/index.html .github
+          git commit -m "Hard-hide obsolete About YouTube player"
+          git push
