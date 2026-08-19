@@ -21,7 +21,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
   deploy:
     environment:
       name: github-pages
@@ -30,12 +29,70 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Strip obsolete Framer YouTube previews
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          about = Path('about/index.html')
+          text = about.read_text(encoding='utf-8')
+
+          css = '''<style id="mirzo-pages-player-kill">
+/* Artifact-level guard: obsolete Framer YouTube preview must never ship visibly. */
+.framer-1jsse1n-container,
+[id="1jsse1n"],
+.framer-xl1v90-container,
+[id="xl1v90"],
+.framer-1kehpu3[data-framer-name="Bottom"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+</style>'''
+
+          if 'id="mirzo-pages-player-kill"' not in text:
+              if '</head>' not in text:
+                  raise SystemExit('Unexpected about/index.html: missing </head>')
+              text = text.replace('</head>', css + '</head>', 1)
+
+          # Also hard-hide the outer hero Bottom wrapper inline in the deployed artifact.
+          pattern = re.compile(r'(<div class="framer-1kehpu3"[^>]*\bstyle=")([^"]*)(")')
+          matches = list(pattern.finditer(text))
+          if len(matches) != 1:
+              raise SystemExit(f'Expected exactly one About hero Bottom wrapper, found {len(matches)}')
+
+          def hide_outer(match):
+              style = match.group(2)
+              if 'display:none!important' not in style.replace(' ', ''):
+                  style = 'display:none!important;visibility:hidden!important;height:0!important;' + style
+              return match.group(1) + style + match.group(3)
+
+          text = pattern.sub(hide_outer, text, count=1)
+          about.write_text(text, encoding='utf-8')
+
+          final = about.read_text(encoding='utf-8')
+          if final.count('id="mirzo-pages-player-kill"') != 1:
+              raise SystemExit('Artifact player-kill CSS validation failed')
+          if 'id="xl1v90"' not in final:
+              raise SystemExit('Expected About player marker not found')
+          if 'display:none!important' not in final:
+              raise SystemExit('Outer wrapper hard-hide validation failed')
+          PY
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
+          # Upload transformed working tree, not the raw repository checkout.
           path: '.'
       - name: Deploy to GitHub Pages
         id: deployment
