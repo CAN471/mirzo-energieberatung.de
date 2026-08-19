@@ -1,0 +1,79 @@
+name: Remove About YouTube player
+
+on:
+  push:
+    branches:
+      - agent/remove-about-youtube-player
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/remove-about-youtube-player
+          fetch-depth: 0
+
+      - name: Remove About Framer player
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          page = Path('about/index.html')
+          text = page.read_text(encoding='utf-8')
+
+          if 'framer-xl1v90-container' not in text or 'id="xl1v90"' not in text:
+              raise SystemExit('Expected About player marker not found')
+
+          css_old = '.framer-1jsse1n-container,\n[id="1jsse1n"] {'
+          css_new = '.framer-1jsse1n-container,\n[id="1jsse1n"],\n.framer-xl1v90-container,\n[id="xl1v90"] {'
+          if css_new not in text:
+              if css_old not in text:
+                  raise SystemExit('Global CSS selector marker not found')
+              text = text.replace(css_old, css_new, 1)
+
+          js_old = "document.querySelectorAll('.framer-1jsse1n-container, [id=\"1jsse1n\"]').forEach(function (preview) {"
+          js_new = "document.querySelectorAll('.framer-1jsse1n-container, [id=\"1jsse1n\"], .framer-xl1v90-container, [id=\"xl1v90\"]').forEach(function (preview) {"
+          if js_new not in text:
+              if js_old not in text:
+                  raise SystemExit('Global JS player selector marker not found')
+              text = text.replace(js_old, js_new, 1)
+
+          removal_old = "preview.querySelectorAll('[tabindex]').forEach(function (el) { el.removeAttribute('tabindex'); });"
+          removal_new = removal_old + "\n      if (preview.matches('.framer-xl1v90-container, [id=\"xl1v90\"]')) preview.remove();"
+          if removal_new not in text:
+              if removal_old not in text:
+                  raise SystemExit('Player cleanup hook not found')
+              text = text.replace(removal_old, removal_new, 1)
+
+          page.write_text(text, encoding='utf-8')
+
+          final = page.read_text(encoding='utf-8')
+          required = [
+              '.framer-xl1v90-container,',
+              '[id="xl1v90"] {',
+              '.framer-xl1v90-container, [id="xl1v90"]',
+              'preview.remove();',
+          ]
+          for marker in required:
+              if marker not in final:
+                  raise SystemExit(f'Validation failed: {marker}')
+
+          print('About YouTube player override applied')
+          PY
+
+      - name: Commit result and self-clean
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/remove-about-youtube-player.yml
+          git rm -f .github/.about-player-trigger 2>/dev/null || true
+          git add about/index.html
+          git commit -m "Remove About YouTube player"
+          git push
