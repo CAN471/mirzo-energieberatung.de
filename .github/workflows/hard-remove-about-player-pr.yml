@@ -1,0 +1,78 @@
+name: Apply About player hard removal
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'agent/hard-remove-about-player'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Hard-hide the About hero player container
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          page = Path('about/index.html')
+          text = page.read_text(encoding='utf-8')
+          marker = 'id="mirzo-about-player-hard-kill"'
+
+          if marker not in text:
+              css = '''<style id="mirzo-about-player-hard-kill">
+.framer-1kehpu3[data-framer-name="Bottom"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+</style>'''
+              text = text.replace('</head>', css + '</head>', 1)
+
+          pattern = re.compile(r'(<div class="framer-1kehpu3"[^>]*\bstyle=")([^"]*)(")')
+          matches = list(pattern.finditer(text))
+          if len(matches) != 1:
+              raise SystemExit(f'Expected exactly one About hero Bottom container, found {len(matches)}')
+
+          def repl(m):
+              style = m.group(2)
+              compact = style.replace(' ', '')
+              if 'display:none!important' not in compact:
+                  style = 'display:none!important;visibility:hidden!important;height:0!important;' + style
+              return m.group(1) + style + m.group(3)
+
+          text = pattern.sub(repl, text, count=1)
+          page.write_text(text, encoding='utf-8')
+
+          final = page.read_text(encoding='utf-8')
+          assert final.count(marker) == 1
+          assert 'display:none!important' in final
+          assert 'id="xl1v90"' in final
+          PY
+
+      - name: Commit clean result
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/.hard-remove-about-player-trigger .github/.hard-remove-about-player-trigger2
+          git rm -f .github/workflows/hard-remove-about-player.yml .github/workflows/hard-remove-about-player-pr.yml
+          git add -A about/index.html .github
+          git commit -m "Hard-hide obsolete About YouTube player"
+          git push
