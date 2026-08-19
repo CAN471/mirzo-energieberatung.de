@@ -328,7 +328,9 @@
 </style><style id="mirzo-global-footer-v2-css">
 /* Shared MIRZO export fixes. */
 .framer-1jsse1n-container,
-[id="1jsse1n"] {
+[id="1jsse1n"],
+.framer-xl1v90-container,
+[id="xl1v90"] {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
@@ -476,12 +478,13 @@ footer[data-framer-name="Footer"] [data-framer-name="Bottom"] > [data-framer-nam
   var markup = '<span class="lunavo-mark" aria-hidden="true">L</span><span class="lunavo-copy"><span class="lunavo-kicker">DIGITAL EXPERIENCE BY</span><strong class="lunavo-name">LUNAVO MEDIA</strong></span><span class="lunavo-arrow" aria-hidden="true">↗</span>';
 
   function applyOverrides() {
-    document.querySelectorAll('.framer-1jsse1n-container, [id="1jsse1n"]').forEach(function (preview) {
+    document.querySelectorAll('.framer-1jsse1n-container, [id="1jsse1n"], .framer-xl1v90-container, [id="xl1v90"]').forEach(function (preview) {
       preview.style.setProperty('display', 'none', 'important');
       preview.style.setProperty('visibility', 'hidden', 'important');
       preview.style.setProperty('pointer-events', 'none', 'important');
       preview.setAttribute('aria-hidden', 'true');
       preview.querySelectorAll('[tabindex]').forEach(function (el) { el.removeAttribute('tabindex'); });
+      if (preview.matches('.framer-xl1v90-container, [id="xl1v90"]')) preview.remove();
     });
 
     document.querySelectorAll('footer[data-framer-name="Footer"] form, footer[data-framer-name="Footer"] [data-framer-name="Social"], footer[data-framer-name="Footer"] [data-framer-name="About"], footer[data-framer-name="Footer"] [data-framer-name="Bottom"] > [data-framer-name="Content"] > [data-framer-name="Right"]').forEach(function (el) {
